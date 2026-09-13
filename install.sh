@@ -3,6 +3,72 @@ set -euo pipefail
 
 CATALOG_URL=${XYMEDIA_CATALOG_URL:-https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/catalog-v1.json}
 RELEASE_BASE=${XYMEDIA_RELEASE_BASE:-https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0}
+XYMEDIA_MIRROR=${XYMEDIA_MIRROR:-}
+if [[ -n $XYMEDIA_MIRROR ]]; then
+  XYMEDIA_MIRROR=$(XYMEDIA_MIRROR_INPUT="$XYMEDIA_MIRROR" python3 - <<'PY'
+import os
+from urllib.parse import urlsplit
+
+value = os.environ['XYMEDIA_MIRROR_INPUT']
+parsed = urlsplit(value)
+try:
+    port = parsed.port
+except ValueError:
+    raise SystemExit(1)
+if (parsed.scheme != 'https' or not parsed.hostname or parsed.username is not None or
+        parsed.password is not None or port is not None or parsed.query or
+        parsed.fragment or '?' in value or '#' in value or parsed.path not in ('', '/')):
+    raise SystemExit(1)
+print('https://' + parsed.netloc.rstrip('/'))
+PY
+  ) || { printf '%s\n' 'XYMEDIA_MIRROR 必须是没有路径、查询、片段、用户信息或端口的 HTTPS origin' >&2; exit 1; }
+fi
+rewrite_download_url() {
+  local original=$1 host
+  [[ -n $XYMEDIA_MIRROR ]] || { printf '%s\n' "$original"; return 0; }
+  host=$(URL_INPUT="$original" python3 - <<'PY'
+import os
+from urllib.parse import urlsplit
+print(urlsplit(os.environ['URL_INPUT']).hostname or '')
+PY
+)
+  case ${host,,} in
+    github.com|raw.githubusercontent.com) printf '%s/%s\n' "$XYMEDIA_MIRROR" "$original";;
+    *) printf '%s\n' "$original";;
+  esac
+}
+DOWNLOAD_MAX_TIME=${XYMEDIA_DOWNLOAD_MAX_TIME:-1800}
+DOWNLOAD_RETRIES=${XYMEDIA_DOWNLOAD_RETRIES:-5}
+if [[ -n $XYMEDIA_MIRROR ]]; then
+  DOWNLOAD_MODE="下载模式：镜像 $XYMEDIA_MIRROR"
+else
+  DOWNLOAD_MODE='下载模式：直连 GitHub'
+fi
+download_remote_file() {
+  local original_url=$1 output=$2 progress_mode=${3:-silent}
+  local rewritten_url part attempt curl_progress effective
+  rewritten_url=$(rewrite_download_url "$original_url")
+  part="$output.part"
+  curl_progress=()
+  [[ $progress_mode == progress ]] && curl_progress=(--progress-bar)
+  mkdir -p "$(dirname -- "$output")"
+  for ((attempt=1; attempt<=DOWNLOAD_RETRIES; attempt++)); do
+    if effective=$(curl --retry 3 --retry-connrefused --retry-delay 5 \
+      --connect-timeout 20 --max-time "$DOWNLOAD_MAX_TIME" --speed-limit 1024 --speed-time 60 \
+      --fail --show-error --location --proto '=https' --tlsv1.2 --continue-at - \
+      "${curl_progress[@]}" -o "$part" -w '%{url_effective}' "$rewritten_url"); then
+      mv -f -- "$part" "$output"
+      DOWNLOAD_EFFECTIVE_URL=${effective:-$rewritten_url}
+      return 0
+    fi
+    # A server without Range support may reject resume. Restart cleanly once
+    # before the next bounded outer attempt rather than appending stale bytes.
+    rm -f -- "$part"
+    [[ $attempt -lt $DOWNLOAD_RETRIES ]] && sleep 2
+  done
+  rm -f -- "$part"
+  return 1
+}
 INSTALL_NONCE=$(date +%s)
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd -P)
 INSTALL_DIR=${XYMEDIA_INSTALL_DIR:-$PWD}
@@ -57,6 +123,7 @@ fi
 XIAOYA_DIR=${XYMEDIA_XIAOYA_DIR:-}
 XIAOYA_CONTAINER_EXPLICIT=${XYMEDIA_XIAOYA_CONTAINER:+1}
 XIAOYA_CONTAINER=${XYMEDIA_XIAOYA_CONTAINER:-xymedia-xiaoya}
+BOOTSTRAP_IMAGE_ENV_EXPLICIT=${XYMEDIA_BOOTSTRAP_IMAGE+x}
 OPTION2_XIAOYA_PENDING=0
 OPTION2_XIAOYA_CHOICE=
 XIAOYA_FOUND=0
@@ -95,10 +162,9 @@ require_public_app_installation() {
   return 0
 }
 refresh_remount_script() {
-  local tmp
+  local tmp url
   tmp=$(mktemp "$INSTALL_DIR/.remount-fuse.sh.XXXXXX") || die '无法创建挂载脚本临时文件'
-  if ! curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-    "$RELEASE_BASE/remount-fuse.sh?installer=$INSTALL_NONCE" -o "$tmp"; then
+  if ! download_remote_file "$RELEASE_BASE/remount-fuse.sh?installer=$INSTALL_NONCE" "$tmp" silent; then
     rm -f "$tmp"
     die '无法下载最新 remount-fuse.sh'
   fi
@@ -341,10 +407,10 @@ url = e.get('asset_url', '')
 parsed = urlsplit(url)
 try: port = parsed.port
 except ValueError: raise SystemExit(1)
-  if (parsed.scheme != 'https' or parsed.netloc.lower() not in ('github.com', 'gh-proxy.org') or
+if (parsed.scheme != 'https' or parsed.netloc.lower() not in ('github.com', 'gh-proxy.org') or
     parsed.username is not None or parsed.password is not None or port is not None or
     parsed.query or parsed.fragment or '%' in (parsed.path or '') or
-      (re.fullmatch(r'/iceqi/xymedia-releases/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?/[A-Za-z0-9][A-Za-z0-9._-]*', parsed.path or '') is None and re.fullmatch(r'/https://github\.com/iceqi/xymedia-releases/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?/[A-Za-z0-9][A-Za-z0-9._-]*', parsed.path or '') is None)):
+    (re.fullmatch(r'/iceqi/xymedia-releases/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?/[A-Za-z0-9][A-Za-z0-9._-]*', parsed.path or '') is None and re.fullmatch(r'/https://github\.com/iceqi/xymedia-releases/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[0-9]+)?/[A-Za-z0-9][A-Za-z0-9._-]*', parsed.path or '') is None)):
     raise SystemExit(1)
 print(e['version'], e['asset_url'], e['sha256'].lower(), sep='\t')
 PY
@@ -355,7 +421,7 @@ PY
     fi
     stage=$(mktemp -d "$INSTALL_DIR/state/.$component.XXXXXX")
     downloaded="$stage/$component.tar.zst"; tarball="$stage/$component.tar"
-    curl --connect-timeout 10 --max-time 300 --fail --silent --show-error --location --proto '=https' --tlsv1.2 -o "$downloaded" "$url" || die "$component 下载失败"
+    download_remote_file "$url" "$downloaded" silent || die "$component 下载失败"
     actual=$(sha256sum "$downloaded" | cut -d' ' -f1); [[ $actual == "$sha" ]] || die "$component SHA256 校验失败"
     zstd -dc "$downloaded" >"$tarball" || die "$component 解压失败"
     python3 - "$tarball" "$stage/root" <<'PY'
@@ -677,6 +743,7 @@ if (( INSTALL_EXISTING )); then
   fi
 fi
 init_installer_log
+printf '%s\n' "$DOWNLOAD_MODE" >>$TTY_OUT
 command -v docker >/dev/null || die '需要安装 Docker'
 if docker compose version >/dev/null 2>&1; then COMPOSE=(docker compose); elif command -v docker-compose >/dev/null; then COMPOSE=(docker-compose); else die '需要安装 Docker Compose'; fi
 docker info >/dev/null 2>&1 || die '无法连接 Docker，请确认 Docker 已启动'
@@ -1117,7 +1184,7 @@ TEMPLATE_DIR="$INSTALL_DIR/bootstrap"
 mkdir -p "$TEMPLATE_DIR"
 template_file() {
   local name=$1 downloaded="$TEMPLATE_DIR/$1"
-  curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 "$RELEASE_BASE/$name?installer=$INSTALL_NONCE" -o "$downloaded"
+  download_remote_file "$RELEASE_BASE/$name?installer=$INSTALL_NONCE" "$downloaded" silent || die "无法下载模板：$name"
   printf '%s\n' "$downloaded"
 }
 if (( CONTROLLER_ONLY )); then
@@ -1160,10 +1227,15 @@ p.write_text('\n'.join(output)+'\n')
 PY
 [[ ! -L "$INSTALL_DIR/.env" ]] || die '.env became a symlink during update'
 mv -f "$env_tmp" "$INSTALL_DIR/.env"
+if [[ -z ${BOOTSTRAP_IMAGE_ENV_EXPLICIT:-} ]] && ! grep -q '^XYMEDIA_BOOTSTRAP_IMAGE=' "$INSTALL_DIR/.env"; then
+  if [[ -n $XYMEDIA_MIRROR ]]; then
+    export XYMEDIA_BOOTSTRAP_IMAGE="${XYMEDIA_MIRROR#https://}/docker/ghcr.io/iceqi/xymedia-bootstrap:1"
+  fi
+fi
 progress '下载公开版本目录（读取 App、TMM、Title 当前版本）'
 catalog_sep='?'
 case "$CATALOG_URL" in *\?*) catalog_sep='&';; esac
-  curl --connect-timeout 10 --max-time 60 --fail --silent --show-error --location --proto '=https' --tlsv1.2 "${CATALOG_URL}${catalog_sep}installer=$INSTALL_NONCE" -o "$INSTALL_DIR/catalog-v1.json"
+  download_remote_file "${CATALOG_URL}${catalog_sep}installer=$INSTALL_NONCE" "$INSTALL_DIR/catalog-v1.json" silent || die '公开版本目录下载失败；如需直连 GitHub，请取消设置 XYMEDIA_MIRROR 后重试'
 python3 - "$INSTALL_DIR/catalog-v1.json" <<'PY' || die 'invalid public catalog'
 import json, sys
 import re
@@ -1212,14 +1284,14 @@ download_extract() {
   local url=$3
   local expected_sha=$4
   local target=$5
-  local work archive tarball result effective status actual
+  local work archive tarball effective actual
   work=$(mktemp -d "$INSTALL_TMP_DIR/${component}.XXXXXX")
   archive="$work/$component.archive"
   printf '    正在下载 %s %s（%s）\n' "$component" "$version" "${url##*/}"
-  result=$(curl --connect-timeout 10 --max-time 300 --fail --show-error --location --proto '=https' --tlsv1.2 --progress-bar -o "$archive" -w '%{url_effective}' "$url") || die "$component 下载失败"
-  effective=$result
-  python3 - "$effective" <<'PY' || die "$component 下载重定向不在 canonical Generic Package URL"
-import re, sys
+  download_remote_file "$url" "$archive" progress || die "$component 下载失败；如需直连 GitHub，请取消设置 XYMEDIA_MIRROR 后重试"
+  effective=${DOWNLOAD_EFFECTIVE_URL:-$url}
+  XYMEDIA_MIRROR_HOST="${XYMEDIA_MIRROR#https://}" python3 - "$effective" <<'PY' || die "$component 下载重定向不在 canonical Generic Package URL"
+import os, re, sys
 from urllib.parse import urlsplit
 url = sys.argv[1]
 parsed = urlsplit(url)
@@ -1229,7 +1301,7 @@ except ValueError:
     raise SystemExit(1)
 if (
     parsed.scheme != "https"
-    or parsed.netloc.lower() not in ("github.com", "gh-proxy.org")
+    or parsed.netloc.lower() not in ("github.com", "gh-proxy.org", os.environ.get("XYMEDIA_MIRROR_HOST", "").lower())
     or parsed.username is not None
     or parsed.password is not None
     or parsed.query
