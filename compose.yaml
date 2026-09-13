@@ -1,0 +1,126 @@
+services:
+  postgres:
+    image: postgres:17-bookworm
+    container_name: xymedia-postgres
+    labels: &xymedia-managed-labels
+      com.xymediavault.managed: "true"
+      com.xymediavault.instance_id: "${XYMEDIA_INSTANCE_ID}"
+      com.xymediavault.install_dir: "${XYMEDIA_INSTALL_DIR}"
+    profiles: [local-db]
+    environment:
+      POSTGRES_DB: ${XYMEDIA_POSTGRES_DATABASE}
+      POSTGRES_USER: ${XYMEDIA_POSTGRES_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/xymedia-postgres-password
+    secrets: [xymedia-postgres-password]
+    ports:
+      - "${XYMEDIA_POSTGRES_BIND_ADDRESS:-0.0.0.0}:${XYMEDIA_POSTGRES_PUBLIC_PORT}:5432"
+    volumes: ["${XYMEDIA_INSTALL_DIR}/data/postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ${XYMEDIA_POSTGRES_USER} -d ${XYMEDIA_POSTGRES_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+  app:
+    # 应用容器通过宿主机公开端口连接 PostgreSQL；Docker/NAS 网络和防火墙必须允许局域网/回环访问。
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    container_name: xymedia-app
+    labels: *xymedia-managed-labels
+    entrypoint: [/usr/bin/tini, --]
+    command: [/releases/current/bin/xymedia-supervisor, --releases-dir, /releases, --config, /app/config.yaml]
+    environment:
+      XYMEDIA_POSTGRES_MODE: external
+      XYMEDIA_POSTGRES_HOST: ${XYMEDIA_POSTGRES_HOST}
+      XYMEDIA_POSTGRES_PORT: ${XYMEDIA_POSTGRES_PORT}
+      XYMEDIA_POSTGRES_DATABASE: ${XYMEDIA_POSTGRES_DATABASE}
+      XYMEDIA_POSTGRES_USER: ${XYMEDIA_POSTGRES_USER}
+      XYMEDIA_COMPONENT_RUNTIME: local
+      XYMEDIA_WEB_DIR: /releases/current/web/dist
+      XYMEDIA_XIAOYA_CONTROLLER_KEY_FILE: /run/secrets/xiaoya-controller-token
+      XYMEDIA_DASHBOARD_API_PORT: ${XYMEDIA_API_PORT:-18080}
+      XYMEDIA_DASHBOARD_WEBDAV_PORT: ${XYMEDIA_WEBDAV_PORT:-18081}
+      XYMEDIA_DASHBOARD_TVBOX_PORT: ${XYMEDIA_TVBOX_PORT:-18082}
+      XYMEDIA_DASHBOARD_EMBY_PROXY_PORT: ${XYMEDIA_EMBY_PROXY_PORT:-18086}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${XYMEDIA_API_PORT:-18080}:8080"
+      - "${XYMEDIA_WEBDAV_PORT:-18081}:8081"
+      - "${XYMEDIA_TVBOX_PORT:-18082}:8082"
+      - "${XYMEDIA_EMBY_PROXY_PORT:-18086}:8083"
+    volumes:
+      - "${XYMEDIA_INSTALL_DIR}/data:/app/data"
+      - "${XYMEDIA_INSTALL_DIR}/components:/app/components"
+      - "${XYMEDIA_INSTALL_DIR}/releases:/releases"
+      - "${XYMEDIA_INSTALL_DIR}/config.yaml:/app/config.yaml:ro"
+    secrets: [xymedia-postgres-password, xiaoya-controller-token]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, /releases/current/bin/xymediavault, healthcheck, --url, http://127.0.0.1:8080/api/health]
+  xiaoya-alist:
+    image: xiaoyaliu/alist:latest
+    profiles: [xiaoya]
+    container_name: ${XYMEDIA_XIAOYA_CONTAINER:-xymedia-xiaoya}
+    labels:
+      com.xymediavault.managed: "true"
+      com.xymediavault.instance_id: "${XYMEDIA_INSTANCE_ID}"
+      com.xymediavault.install_dir: "${XYMEDIA_INSTALL_DIR}"
+    ports: ["${XYMEDIA_XIAOYA_PORT:-5678}:80", "${XYMEDIA_XIAOYA_ADMIN_PORT:-2345}:2345", "${XYMEDIA_XIAOYA_PROXY_PORT:-2346}:2346"]
+    volumes:
+      - "${XYMEDIA_XIAOYA_DATA_DIR:-${XYMEDIA_INSTALL_DIR}/xiaoya}:/data"
+      - "${XYMEDIA_XIAOYA_DATA_DIR:-${XYMEDIA_INSTALL_DIR}/xiaoya}/data:/www/data"
+    restart: unless-stopped
+  xiaoya-control:
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    profiles: [xiaoya-control]
+    container_name: xymedia-controller
+    labels: *xymedia-managed-labels
+    entrypoint: [/controller/xymedia-edge]
+    command: [controller]
+    environment:
+      XYMEDIA_CONTROLLER_TOKEN_FILE: /run/secrets/xiaoya-controller-token
+      XYMEDIA_XIAOYA_CONTAINER: ${XYMEDIA_XIAOYA_CONTAINER:-xymedia-xiaoya}
+      XYMEDIA_XIAOYA_SERVICE_PORTS: "80,2345,2346"
+      XYMEDIA_XIAOYA_DATA_DIR: /xiaoya
+      XYMEDIA_ALIYUN_QR_URL: https://passport.aliyundrive.com/newlogin/qrcode
+      XYMEDIA_ALIYUN_OPEN_TOKEN_URL: https://openapi.alipan.com
+      XYMEDIA_ALIYUN_TV_BASE_URL: ${XYMEDIA_ALIYUN_TV_BASE_URL:-http://api.extscreen.com}
+      XYMEDIA_ALIYUN_TV_OPENAPI_BASE_URL: ${XYMEDIA_ALIYUN_TV_OPENAPI_BASE_URL:-https://openapi.alipan.com}
+      XYMEDIA_INSECURE_SKIP_TLS_VERIFY: "true"
+      XYMEDIA_CONTROLLER_ADDR: "${XYMEDIA_CONTROLLER_BIND_ADDRESS:-0.0.0.0}:${XYMEDIA_CONTROLLER_PORT:-19090}"
+      XYMEDIA_HOST_ADDRESSES_FILE: /etc/xymedia/config/XYMEDIA_HOST_ADDRESSES
+      XYMEDIA_HOST_ADDRESSES: ${XYMEDIA_HOST_ADDRESSES:-}
+    ports: ["${XYMEDIA_CONTROLLER_BIND_ADDRESS:-0.0.0.0}:${XYMEDIA_CONTROLLER_PORT:-19090}:${XYMEDIA_CONTROLLER_PORT:-19090}"]
+    volumes:
+      - "${XYMEDIA_XIAOYA_DATA_DIR:-${XYMEDIA_INSTALL_DIR}/xiaoya}:/xiaoya"
+      - "${XYMEDIA_INSTALL_DIR}/config:/etc/xymedia/config:ro"
+      - "${XYMEDIA_INSTALL_DIR}/controller:/controller:ro"
+      - /var/run/docker.sock:/var/run/docker.sock
+    secrets: [xiaoya-controller-token]
+    restart: unless-stopped
+  app-migrate:
+    # 迁移容器同样通过宿主机公开端口连接；Docker/NAS 网络和防火墙必须允许局域网/回环访问。
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    labels: *xymedia-managed-labels
+    entrypoint: [/releases/current/bin/xymediavault]
+    command: [migrate, --new, --config, /app/config.yaml]
+    environment:
+      XYMEDIA_POSTGRES_MODE: external
+      XYMEDIA_POSTGRES_HOST: ${XYMEDIA_POSTGRES_HOST}
+      XYMEDIA_POSTGRES_PORT: ${XYMEDIA_POSTGRES_PORT}
+      XYMEDIA_POSTGRES_DATABASE: ${XYMEDIA_POSTGRES_DATABASE}
+      XYMEDIA_POSTGRES_USER: ${XYMEDIA_POSTGRES_USER}
+      XYMEDIA_EXTERNAL_MIGRATION_CONFIRM: ${XYMEDIA_EXTERNAL_MIGRATION_CONFIRM:-YES}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - "${XYMEDIA_INSTALL_DIR}/data:/app/data"
+      - "${XYMEDIA_INSTALL_DIR}/releases:/releases:ro"
+      - "${XYMEDIA_INSTALL_DIR}/config.yaml:/app/config.yaml:ro"
+    secrets: [xymedia-postgres-password, xiaoya-controller-token]
+    profiles: [migration]
+    restart: "no"
+secrets:
+  xymedia-postgres-password:
+    file: ${XYMEDIA_INSTALL_DIR}/secrets/xymedia-postgres-password
+  xiaoya-controller-token:
+    file: ${XYMEDIA_INSTALL_DIR}/secrets/xiaoya-controller-token
