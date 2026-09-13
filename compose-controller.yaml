@@ -1,0 +1,34 @@
+services:
+  xiaoya-control:
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    container_name: xymedia-controller
+    labels:
+      com.xymediavault.managed: "true"
+      com.xymediavault.instance_id: "${XYMEDIA_INSTANCE_ID}"
+      com.xymediavault.install_dir: "${XYMEDIA_INSTALL_DIR}"
+    entrypoint: [/controller/xymedia-edge]
+    command: [controller]
+    environment:
+      XYMEDIA_CONTROLLER_TOKEN_FILE: /run/secrets/xiaoya-controller-token
+      XYMEDIA_XIAOYA_CONTAINER: ${XYMEDIA_XIAOYA_CONTAINER:-xymedia-xiaoya}
+      XYMEDIA_XIAOYA_SERVICE_PORTS: "80,2345,2346"
+      XYMEDIA_XIAOYA_DATA_DIR: /xiaoya
+      XYMEDIA_ALIYUN_QR_URL: https://passport.aliyundrive.com/newlogin/qrcode
+      XYMEDIA_ALIYUN_TV_BASE_URL: ${XYMEDIA_ALIYUN_TV_BASE_URL:-http://api.extscreen.com}
+      XYMEDIA_ALIYUN_TV_OPENAPI_BASE_URL: ${XYMEDIA_ALIYUN_TV_OPENAPI_BASE_URL:-https://openapi.alipan.com}
+      XYMEDIA_INSECURE_SKIP_TLS_VERIFY: "true"
+      XYMEDIA_CONTROLLER_ADDR: "${XYMEDIA_CONTROLLER_BIND_ADDRESS:-0.0.0.0}:${XYMEDIA_CONTROLLER_PORT:-19090}"
+      XYMEDIA_HOST_ADDRESSES_FILE: /etc/xymedia/config/XYMEDIA_HOST_ADDRESSES
+      XYMEDIA_HOST_ADDRESSES: ${XYMEDIA_HOST_ADDRESSES:-}
+    ports:
+      - "${XYMEDIA_CONTROLLER_BIND_ADDRESS:-0.0.0.0}:${XYMEDIA_CONTROLLER_PORT:-19090}:${XYMEDIA_CONTROLLER_PORT:-19090}"
+    volumes:
+      - "${XYMEDIA_XIAOYA_DATA_DIR:-${XYMEDIA_INSTALL_DIR}/xiaoya}:/xiaoya"
+      - "${XYMEDIA_INSTALL_DIR}/config:/etc/xymedia/config:ro"
+      - "${XYMEDIA_INSTALL_DIR}/controller:/controller:ro"
+      - /var/run/docker.sock:/var/run/docker.sock
+    secrets: [xiaoya-controller-token]
+    restart: unless-stopped
+secrets:
+  xiaoya-controller-token:
+    file: ${XYMEDIA_INSTALL_DIR}/secrets/xiaoya-controller-token
