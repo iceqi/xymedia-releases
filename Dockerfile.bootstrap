@@ -1,0 +1,12 @@
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+FROM docker.m.daocloud.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+
+RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+    apt-get update \
+    && env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+    apt-get install -y --no-install-recommends tini openjdk-17-jre-headless fuse3 zstd curl ca-certificates bash procps \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENTRYPOINT ["/usr/bin/tini", "--", "/releases/current/bin/xymedia-supervisor"]
