@@ -1,0 +1,12 @@
+services:
+  app:
+    devices:
+      - /dev/fuse:/dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      XYMEDIAVAULT_FUSE_HOST_PATH: ${XYMEDIA_FUSE_HOST_PATH}
+    volumes:
+      - ${XYMEDIA_FUSE_HOST_PATH}:/mnt/xymediavault:rshared
