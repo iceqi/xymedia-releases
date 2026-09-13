@@ -1,0 +1,40 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  web_dir: /releases/current/web/dist
+database:
+  mode: external
+  driver: postgres
+  host: ${XYMEDIA_POSTGRES_HOST}
+  port: ${XYMEDIA_POSTGRES_PORT}
+  name: ${XYMEDIA_POSTGRES_DATABASE}
+  user: ${XYMEDIA_POSTGRES_USER}
+  password_file: /run/secrets/xymedia-postgres-password
+  sslmode: disable
+virtual:
+  enable_remote_file_mapping: false
+webdav:
+  enabled: true
+  listen_addr: 0.0.0.0
+  port: 8081
+  public_port: 18081
+  base_path: /dav
+  read_only: true
+tvbox:
+  enabled: true
+  listen_addr: 0.0.0.0
+  port: 8082
+  public_port: 18082
+  token_key_file: /app/data/tvbox-token.key
+fuse:
+  auto_mount: false
+  mount_path: /mnt/xymediavault
+cache:
+  directory: /app/data/cache/media-map
+xiaoya:
+  config_dir: /app/xiaoya
+  container_name: ${XYMEDIA_XIAOYA_CONTAINER}
+  internal_url: http://${XYMEDIA_XIAOYA_CONTAINER}:80
+  public_url: http://127.0.0.1:5678
+  controller_url: ${XYMEDIA_XIAOYA_CONTROLLER_URL}
+  controller_key_file: /run/secrets/xiaoya-controller-token
