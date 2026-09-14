@@ -15,7 +15,7 @@
 
 ```bash
 curl -fsSL \
-  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo bash
 ```
 
@@ -23,7 +23,7 @@ curl -fsSL \
 
 ```bash
 curl -fsSL \
-  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash
 ```
 
@@ -33,7 +33,7 @@ curl -fsSL \
 
 ```bash
 curl -fsSL \
-  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo bash -s -- --install-dir /opt/xymedia
 ```
 
@@ -72,7 +72,7 @@ proxy.151513.xyz/ghcr.io/iceqi/xymedia-bootstrap:1
 
 ```bash
 curl -fsSL \
-  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash -s -- --force-update
 ```
 
