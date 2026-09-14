@@ -10,7 +10,7 @@
 
 ```bash
 curl -fsSL \
-  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo bash
 ```
 
@@ -22,7 +22,7 @@ curl -fsSL \
 
 ```bash
 curl -fsSL \
-  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash
 ```
 
@@ -61,7 +61,7 @@ curl -fsSL \
 
 ```bash
 curl -fsSL \
-  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash -s -- --force-update
 ```
 
@@ -123,7 +123,7 @@ XYMEDIA_WEBDAV_PORT=28081 \
 XYMEDIA_TVBOX_PORT=28082 \
 XYMEDIA_CONTROLLER_PORT=29090 \
 curl -fsSL \
-  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+  https://github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo -E bash
 ```
 
