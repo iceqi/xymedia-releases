@@ -1457,6 +1457,13 @@ fi
 mv "$release_target.new.$$" "$release_target" || { mv "$release_backup" "$release_target" 2>/dev/null || true; die '无法安装新 release'; }
 RELEASE_ROLLBACK_ACTIVE=1
 ln -sfn "releases/$APP_VERSION" "$INSTALL_DIR/releases/current"
+# NAS 文件系统可能使用严格 umask，导致归档目录不可进入，即使入口文件本身有执行位。
+# 只修复当前受信任 App release 的目录遍历权限和已确认的程序入口，不改变用户数据权限。
+find "$release_target" -type d -exec chmod 755 {} + || die '无法恢复 release 目录访问权限'
+for entrypoint in "$release_target/bin/xymediavault" "$release_target/bin/xymedia-supervisor"; do
+  [[ -f $entrypoint && ! -L $entrypoint ]] || die "安装后的 app entrypoint 不是普通文件：${entrypoint##*/}"
+  chmod 755 "$entrypoint" || die "无法恢复 app entrypoint 执行权限：${entrypoint##*/}"
+done
 fi
 if (( ! SKIP_COMPONENTS )); then
   progress '下载 TMM 与 Title 组件包'
