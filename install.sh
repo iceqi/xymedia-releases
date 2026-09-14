@@ -1341,6 +1341,7 @@ archive, target = sys.argv[1:]
 pathlib.Path(target).mkdir(parents=True, exist_ok=True)
 with tarfile.open(archive, 'r:*') as tf:
     members = tf.getmembers()
+    executable_members = set()
     for m in members:
         name = m.name.lstrip('./')
         if not name or name.startswith('/') or '..' in pathlib.PurePosixPath(name).parts:
@@ -1348,10 +1349,27 @@ with tarfile.open(archive, 'r:*') as tf:
         if m.issym() or m.islnk() or not (m.isfile() or m.isdir()):
             raise SystemExit('archive contains link or special file')
         m.name = name
+        # A restrictive umask can remove execute bits while tar extracts. Keep
+        # the archive's executable intent so binaries below a bin directory
+        # are repaired without making arbitrary archive files executable.
+        if m.isfile() and (m.mode & 0o111) and 'bin' in pathlib.PurePosixPath(name).parts[:-1]:
+            executable_members.add(name)
     try:
         tf.extractall(target, members=members, filter='data')
     except TypeError:
         tf.extractall(target, members=members)
+for m in members:
+    path = pathlib.Path(target, m.name)
+    required = m.name in executable_members or (
+        m.isfile() and pathlib.PurePosixPath(m.name).parts[-2:] in {
+            ('bin', 'xymediavault'), ('bin', 'xymedia-supervisor')
+        }
+    )
+    if not required:
+        continue
+    if not path.is_file() or path.is_symlink():
+        raise SystemExit('executable archive member was not extracted as a regular file')
+    path.chmod(path.stat().st_mode | 0o500)
 PY
   cp "$archive" "$target/.download.archive"
   rm -f "$tarball"
