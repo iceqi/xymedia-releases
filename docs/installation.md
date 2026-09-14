@@ -37,6 +37,24 @@ curl -fsSL --proto '=https' --proto-redir '=https' \
 
 镜像是用户自行选择的服务，不保证可用性；失败时取消该变量重试直连，或更换镜像。不要把密钥放进 URL。
 
+## 强制更新
+
+升级已有安装时可使用以下不带值参数（也支持对应环境变量，适合 `sudo` 管道）：
+
+```bash
+curl -fsSL --proto '=https' --proto-redir '=https' \
+  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
+  | sudo env XYMEDIA_MIRROR=https://gh-proxy.org bash -s -- --force-update
+```
+
+- `--force-update`（`XYMEDIA_FORCE_UPDATE=1`）：强制重新下载当前版本应用、Controller、TMM、Title、模板和目录，并对相关服务使用 `--pull always --force-recreate`。
+- `--force-image`（`XYMEDIA_FORCE_IMAGE=1`）：只强制检查/拉取 Bootstrap 镜像并重建相关容器。
+- `--force-components`（`XYMEDIA_FORCE_COMPONENTS=1`）：只强制重新下载、校验和提取 TMM 与 Title，不强制拉取 Docker 镜像。
+
+`--force-update` 覆盖其他强制选项的重叠语义。三种模式都保留 `data/`、`.env`、`secrets/`、数据库和 Xiaoya 数据；下载完成 SHA-256 校验后才原子替换文件。安装器会输出对应的“强制更新”启用提示。
+
+Compose 的 `--force-recreate` 表示即使配置未变化也重建容器，`--pull always` 表示 `up` 时总是检查并拉取镜像。安装器不会把 `--pull always` 加到数据库迁移的 `compose run`，并保留迁移命令的 `--no-deps`。
+
 ## 模式
 
 菜单 `1` 安装或升级管理平台和本机小雅；`2` 仅安装管理平台；`3` 安装平台并连接远程控制器；`4` 仅安装小雅控制器；`5` 查看状态、诊断和维护；`6` 查看控制器地址和密钥；`7` 查看数据库连接信息；`0` 退出。
