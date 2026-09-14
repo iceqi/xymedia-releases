@@ -22,6 +22,7 @@ PY
   ) || { printf '%s\n' 'XYMEDIA_MIRROR 必须是没有路径、查询、片段、用户信息或端口的 HTTPS origin' >&2; exit 1; }
 fi
 RELEASE_REPO=${XYMEDIA_RELEASE_REPO:-iceqi/xymedia-releases}
+AUTO_RESOLVED_RELEASE=0
 if [[ -n ${XYMEDIA_RELEASE_TAG:-} ]]; then
   RELEASE_TAG=$XYMEDIA_RELEASE_TAG
 elif [[ -n ${XYMEDIA_CATALOG_URL:-} && -n ${XYMEDIA_RELEASE_BASE:-} ]]; then
@@ -32,6 +33,7 @@ else
     || { printf '%s\n' '无法查询最新稳定版本；请设置 XYMEDIA_RELEASE_TAG' >&2; exit 1; }
   RELEASE_TAG=$(printf '%s\n' "$latest_json" | sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
   [[ $RELEASE_TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { printf '%s\n' '最新 Release 不是稳定版本或响应无效' >&2; exit 1; }
+  AUTO_RESOLVED_RELEASE=1
   printf '%s\n' "已解析最新稳定版：$RELEASE_TAG" >&2
 fi
 if [[ -z ${XYMEDIA_CATALOG_URL:-} && -n $RELEASE_TAG ]]; then
@@ -1273,7 +1275,7 @@ fi
 progress '下载公开版本目录（读取 App、TMM、Title 当前版本）'
 catalog_sep='?'
 case "$CATALOG_URL" in *\?*) catalog_sep='&';; esac
-if (( FORCE_UPDATE )) || [[ ! -s $INSTALL_DIR/catalog-v1.json ]]; then
+if (( FORCE_UPDATE || AUTO_RESOLVED_RELEASE )) || [[ ! -s $INSTALL_DIR/catalog-v1.json ]]; then
   download_remote_file "${CATALOG_URL}${catalog_sep}installer=$INSTALL_NONCE" "$INSTALL_DIR/catalog-v1.json" silent || die '公开版本目录下载失败；如需直连 GitHub，请取消设置 XYMEDIA_MIRROR 后重试'
 fi
 python3 - "$INSTALL_DIR/catalog-v1.json" <<'PY' || die 'invalid public catalog'
