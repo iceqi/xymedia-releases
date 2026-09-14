@@ -58,7 +58,7 @@ curl -fsSL --proto '=https' --proto-redir '=https' \
 ```bash
 curl -fsSL --proto '=https' --proto-redir '=https' \
   https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
-  | sudo env XYMEDIA_MIRROR=https://gh-proxy.org bash -s -- --force-update
+  | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash -s -- --force-update
 ```
 
 | 选项 | 作用 |
@@ -78,10 +78,10 @@ Compose 的 `--force-recreate` 强制重新创建容器，`--pull always` 强制
 ```bash
 curl -fsSL --proto '=https' --proto-redir '=https' \
   https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
-  | sudo env XYMEDIA_MIRROR=https://gh-proxy.org bash
+  | sudo env XYMEDIA_MIRROR=https://proxy.example bash
 ```
 
-也可以在指定安装目录的命令中使用同样的 `sudo env XYMEDIA_MIRROR=... bash -s -- ...` 形式。启动后安装器会显示 `下载模式：直连 GitHub` 或 `下载模式：镜像 <origin>`。镜像变量会把 GitHub Release 下载地址按当前配置的前缀改写；Bootstrap 默认直连 `ghcr.io/iceqi/xymedia-bootstrap:1`，设置镜像后才改为 `gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1` 这样的 Docker 镜像引用。普通文件下载会使用临时 `.part` 文件、断点续传和有限重试，完成后再原子替换目标文件；慢速连接仍受限时退出，不会把不完整文件当作完成。`XYMEDIA_MIRROR` 必须是没有路径、查询参数、片段、用户信息或端口的 HTTPS origin；不设置或设置为空时回退到直连。镜像下载失败时不会静默切换到 GitHub，请取消设置 `XYMEDIA_MIRROR` 后重试。显式设置 `XYMEDIA_BOOTSTRAP_IMAGE` 时不会改写该镜像。
+也可以在指定安装目录的命令中使用同样的 `sudo env XYMEDIA_MIRROR=... bash -s -- ...` 形式。启动后安装器会显示 `下载模式：直连 GitHub` 或 `下载模式：镜像 <origin>`。镜像变量会把 GitHub Release 下载地址按当前配置的前缀改写；普通文件下载保持现有的 GitHub URL 改写语义。Bootstrap 默认直连 `ghcr.io/iceqi/xymedia-bootstrap:1`；设置镜像后，Bootstrap 使用 `${XYMEDIA_MIRROR#https://}/ghcr.io/iceqi/xymedia-bootstrap:1`，例如 `proxy.151513.xyz/ghcr.io/iceqi/xymedia-bootstrap:1`，本例中的镜像服务不使用 `/docker/` 段。镜像 URL 格式由服务提供方决定，其他提供方可能使用不同格式；请以其文档为准。普通文件下载会使用临时 `.part` 文件、断点续传和有限重试，完成后再原子替换目标文件；慢速连接仍受限时退出，不会把不完整文件当作完成。`XYMEDIA_MIRROR` 必须是没有路径、查询参数、片段、用户信息或端口的 HTTPS origin；不设置或设置为空时回退到直连。镜像下载失败时不会静默切换到 GitHub，请取消设置 `XYMEDIA_MIRROR` 后重试。显式设置 `XYMEDIA_BOOTSTRAP_IMAGE` 时不会改写该镜像。
 
 ---
 
