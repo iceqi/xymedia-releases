@@ -81,6 +81,9 @@ INSTALL_EXISTING=0
 XYMEDIA_POSTGRES_PUBLIC_PORT=${XYMEDIA_POSTGRES_PUBLIC_PORT:-}
 PG_HOST_ENV_EXPLICIT=${XYMEDIA_POSTGRES_HOST:+1}
 SKIP_COMPONENTS=0
+FORCE_UPDATE=${XYMEDIA_FORCE_UPDATE:-0}
+FORCE_IMAGE=${XYMEDIA_FORCE_IMAGE:-0}
+FORCE_COMPONENTS=${XYMEDIA_FORCE_COMPONENTS:-0}
 EXISTING_DB=0
 LOCAL_DB=0
 PG_HOST_CLI=0
@@ -369,6 +372,9 @@ cleanup_all() {
 while (($#)); do
   case "$1" in
     --install-dir) INSTALL_DIR=${2:?missing value}; shift 2;;
+    --force-update) FORCE_UPDATE=1; shift;;
+    --force-image) FORCE_IMAGE=1; shift;;
+    --force-components) FORCE_COMPONENTS=1; shift;;
     --postgres-host) PG_HOST=${2:?missing value}; PG_HOST_CLI=1; shift 2;;
     --postgres-port) PG_PORT=${2:?missing value}; shift 2;;
     --postgres-db) PG_DB=${2:?missing value}; shift 2;;
@@ -380,6 +386,10 @@ while (($#)); do
     *) die "未知选项：$1";;
   esac
 done
+[[ $FORCE_UPDATE =~ ^[01]$ && $FORCE_IMAGE =~ ^[01]$ && $FORCE_COMPONENTS =~ ^[01]$ ]] || { printf '%s\n' '强制选项环境变量必须是 0 或 1' >&2; exit 1; }
+if (( FORCE_UPDATE )); then FORCE_IMAGE=1; FORCE_COMPONENTS=1; fi
+FORCE_UP_FLAGS=(--force-recreate)
+if (( FORCE_IMAGE )); then FORCE_UP_FLAGS=(--pull always --force-recreate); fi
 persist_installer_log() {
   [[ -n ${INSTALL_LOG:-} && -f $INSTALL_LOG ]] || return 0
   [[ -n ${INSTALL_DIR:-} && $INSTALL_DIR = /* && $INSTALL_DIR != / ]] || return 0
@@ -416,7 +426,7 @@ print(e['version'], e['asset_url'], e['sha256'].lower(), sep='\t')
 PY
 ) || die '公开目录缺少带 SHA-256 的组件制品'
     archive="$INSTALL_DIR/components/$component.tar.zst"; marker_version="$INSTALL_DIR/components/$component.version"; marker_sha="$INSTALL_DIR/components/$component.sha256"
-    if [[ -s $archive && -f $marker_version && -f $marker_sha && $(<"$marker_version") == "$version" && $(<"$marker_sha") == "$sha" && $(sha256sum "$archive" | cut -d' ' -f1) == "$sha" ]]; then
+    if (( ! FORCE_COMPONENTS && ! FORCE_UPDATE )) && [[ -s $archive && -f $marker_version && -f $marker_sha && $(<"$marker_version") == "$version" && $(<"$marker_sha") == "$sha" && $(sha256sum "$archive" | cut -d' ' -f1) == "$sha" ]]; then
       printf '%s %s 已安装且完整，跳过下载\n' "$([[ $component == tmm ]] && printf TMM || printf Title)" "$version"; continue
     fi
     stage=$(mktemp -d "$INSTALL_DIR/state/.$component.XXXXXX")
@@ -575,7 +585,7 @@ if [[ ${XYMEDIA_INSTALL_TEST_POST_MIGRATION_ONLY:-0} == 1 ]]; then
     run_visible_logged "${COMPOSE[@]}" --profile migration --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" "${COMPOSE_FUSE[@]}" run --rm -T --no-deps app-migrate bootstrap-controller --config /app/config.yaml </dev/null
   fi
   progress '启动 XyMediaVault 服务' || true
-  start_app_after_migration "${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" "${COMPOSE_FUSE[@]}" up -d --force-recreate app
+  start_app_after_migration "${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" "${COMPOSE_FUSE[@]}" up -d "${FORCE_UP_FLAGS[@]}" app
   app_start_rc=$?
   if (( app_start_rc != 0 )); then
     persist_installer_log || true
@@ -744,6 +754,9 @@ if (( INSTALL_EXISTING )); then
 fi
 init_installer_log
 printf '%s\n' "$DOWNLOAD_MODE" >>$TTY_OUT
+if (( FORCE_UPDATE )); then printf '%s\n' '强制更新：已启用' >>$TTY_OUT; fi
+if (( FORCE_IMAGE )); then printf '%s\n' '强制镜像更新：已启用' >>$TTY_OUT; fi
+if (( FORCE_COMPONENTS )); then printf '%s\n' '强制组件更新：已启用' >>$TTY_OUT; fi
 command -v docker >/dev/null || die '需要安装 Docker'
 if docker compose version >/dev/null 2>&1; then COMPOSE=(docker compose); elif command -v docker-compose >/dev/null; then COMPOSE=(docker-compose); else die '需要安装 Docker Compose'; fi
 docker info >/dev/null 2>&1 || die '无法连接 Docker，请确认 Docker 已启动'
@@ -1184,6 +1197,10 @@ TEMPLATE_DIR="$INSTALL_DIR/bootstrap"
 mkdir -p "$TEMPLATE_DIR"
 template_file() {
   local name=$1 downloaded="$TEMPLATE_DIR/$1"
+  if (( ! FORCE_UPDATE )) && [[ -s $downloaded ]]; then
+    printf '%s\n' "$downloaded"
+    return 0
+  fi
   download_remote_file "$RELEASE_BASE/$name?installer=$INSTALL_NONCE" "$downloaded" silent || die "无法下载模板：$name"
   printf '%s\n' "$downloaded"
 }
@@ -1235,7 +1252,9 @@ fi
 progress '下载公开版本目录（读取 App、TMM、Title 当前版本）'
 catalog_sep='?'
 case "$CATALOG_URL" in *\?*) catalog_sep='&';; esac
+if (( FORCE_UPDATE )) || [[ ! -s $INSTALL_DIR/catalog-v1.json ]]; then
   download_remote_file "${CATALOG_URL}${catalog_sep}installer=$INSTALL_NONCE" "$INSTALL_DIR/catalog-v1.json" silent || die '公开版本目录下载失败；如需直连 GitHub，请取消设置 XYMEDIA_MIRROR 后重试'
+fi
 python3 - "$INSTALL_DIR/catalog-v1.json" <<'PY' || die 'invalid public catalog'
 import json, sys
 import re
@@ -1362,15 +1381,20 @@ if (( CONTROLLER_ONLY )); then
   [[ -s "$INSTALL_DIR/secrets/xiaoya-controller-token" ]] || write_controller_token
   cp "$COMPOSE_TEMPLATE" "$INSTALL_DIR/compose.yaml"
   progress '启动小雅控制器'
-  run_logged "${COMPOSE[@]}" --profile xiaoya-control --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" up -d xiaoya-control || die '小雅控制器启动失败'
+  run_logged "${COMPOSE[@]}" --profile xiaoya-control --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" up -d "${FORCE_UP_FLAGS[@]}" xiaoya-control || die '小雅控制器启动失败'
   printf '小雅控制器已安装，监听地址：%s:%s；请按防火墙配置访问，控制器密钥不会显示。\n' "$CONTROLLER_BIND_ADDRESS" "$CONTROLLER_PORT"
   exit 0
 fi
 IFS=$'\t' read -r APP_VERSION APP_URL APP_SHA < <(artifact app "$PLATFORM")
 APP_STAGE=$(mktemp -d "$INSTALL_TMP_DIR/app.XXXXXX")
-progress "下载应用包 $APP_VERSION ($PLATFORM)"
-download_extract app "$APP_VERSION" "$APP_URL" "$APP_SHA" "$APP_STAGE"
-APP_ROOT="$APP_STAGE/xymediavault-$APP_VERSION-$PLATFORM"
+if (( FORCE_IMAGE )) && (( ! FORCE_UPDATE )) && [[ -L $INSTALL_DIR/releases/current ]]; then
+  APP_ROOT=$(readlink -f -- "$INSTALL_DIR/releases/current")
+  [[ -x $APP_ROOT/bin/xymediavault ]] || die '当前 release 不完整，无法执行仅镜像更新'
+else
+  progress "下载应用包 $APP_VERSION ($PLATFORM)"
+  download_extract app "$APP_VERSION" "$APP_URL" "$APP_SHA" "$APP_STAGE"
+  APP_ROOT="$APP_STAGE/xymediavault-$APP_VERSION-$PLATFORM"
+fi
 [[ -x $APP_ROOT/bin/xymediavault && -x $APP_ROOT/bin/xymedia-supervisor && -d $APP_ROOT/web/dist && -f $APP_ROOT/release.json ]] || die "app package $APP_VERSION lacks the required xymedia-supervisor; use a newer public app package"
 app_platform=$(python3 - "$APP_ROOT/release.json" <<'PY'
 import json, sys
@@ -1389,6 +1413,7 @@ PY
 if [[ -x $APP_ROOT/bin/xymedia-edge ]]; then
   install_controller_binary "$APP_ROOT/bin/xymedia-edge"
 fi
+if (( ! FORCE_IMAGE || FORCE_UPDATE )); then
 mkdir -p "$INSTALL_DIR/releases/releases"
 if [[ -e "$INSTALL_DIR/releases/releases/$APP_VERSION" ]]; then
   progress '停止旧版本应用以替换同版本 release'
@@ -1406,6 +1431,7 @@ fi
 mv "$release_target.new.$$" "$release_target" || { mv "$release_backup" "$release_target" 2>/dev/null || true; die '无法安装新 release'; }
 RELEASE_ROLLBACK_ACTIVE=1
 ln -sfn "releases/$APP_VERSION" "$INSTALL_DIR/releases/current"
+fi
 if (( ! SKIP_COMPONENTS )); then
   progress '下载 TMM 与 Title 组件包'
   for component in tmm title; do
@@ -1414,7 +1440,7 @@ if (( ! SKIP_COMPONENTS )); then
     archive="$INSTALL_DIR/components/$component.tar.zst"
     marker_version="$INSTALL_DIR/components/$component.version"
     marker_sha="$INSTALL_DIR/components/$component.sha256"
-    if [[ -s $archive && -f $marker_version && -f $marker_sha ]] && [[ $(<"$marker_version") == "$version" ]] && [[ $(<"$marker_sha") == "$sha" ]] && [[ $(sha256sum "$archive" | cut -d' ' -f1) == "$sha" ]]; then
+    if (( ! FORCE_COMPONENTS && ! FORCE_UPDATE )) && [[ -s $archive && -f $marker_version && -f $marker_sha ]] && [[ $(<"$marker_version") == "$version" ]] && [[ $(<"$marker_sha") == "$sha" ]] && [[ $(sha256sum "$archive" | cut -d' ' -f1) == "$sha" ]]; then
       printf '%s %s 已安装且完整，跳过下载\n' "$([[ $component == tmm ]] && printf TMM || printf Title)" "$version"
       continue
     fi
@@ -1498,7 +1524,7 @@ if [[ -n $MENU_PROFILES ]]; then
     else
       printf '正在创建并启动小雅控制器：xymedia-controller\n'
     fi
-    if ! run_logged "${COMPOSE[@]}" --profile "$profile" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" up -d --no-deps --force-recreate "$profile_service"; then
+    if ! run_logged "${COMPOSE[@]}" --profile "$profile" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" up -d --no-deps "${FORCE_UP_FLAGS[@]}" "$profile_service"; then
       if [[ $profile == xiaoya ]]; then
         profile_state=$(docker inspect --format '{{.State.Status}}' "$XIAOYA_CONTAINER" 2>>"$INSTALL_LOG" || true)
       else
@@ -1694,7 +1720,7 @@ else
   exit 1
 fi
 progress '启动 XyMediaVault 服务' || true
-start_app_after_migration "${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" "${COMPOSE_FUSE[@]}" up -d --force-recreate app
+start_app_after_migration "${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" "${COMPOSE_FUSE[@]}" up -d "${FORCE_UP_FLAGS[@]}" app
 app_start_rc=$?
 if (( app_start_rc != 0 )); then
   exit_code=1
