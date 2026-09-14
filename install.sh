@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CATALOG_URL=${XYMEDIA_CATALOG_URL:-https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/catalog-v1.json}
-RELEASE_BASE=${XYMEDIA_RELEASE_BASE:-https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0}
 XYMEDIA_MIRROR=${XYMEDIA_MIRROR:-}
 if [[ -n $XYMEDIA_MIRROR ]]; then
   XYMEDIA_MIRROR=$(XYMEDIA_MIRROR_INPUT="$XYMEDIA_MIRROR" python3 - <<'PY'
@@ -22,6 +20,29 @@ if (parsed.scheme != 'https' or not parsed.hostname or parsed.username is not No
 print('https://' + parsed.netloc.rstrip('/'))
 PY
   ) || { printf '%s\n' 'XYMEDIA_MIRROR 必须是没有路径、查询、片段、用户信息或端口的 HTTPS origin' >&2; exit 1; }
+fi
+RELEASE_REPO=${XYMEDIA_RELEASE_REPO:-iceqi/xymedia-releases}
+if [[ -n ${XYMEDIA_RELEASE_TAG:-} ]]; then
+  RELEASE_TAG=$XYMEDIA_RELEASE_TAG
+elif [[ -n ${XYMEDIA_CATALOG_URL:-} && -n ${XYMEDIA_RELEASE_BASE:-} ]]; then
+  RELEASE_TAG=
+else
+  latest_json=$(curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    -H 'Accept: application/vnd.github+json' "${XYMEDIA_LATEST_URL:-https://api.github.com/repos/$RELEASE_REPO/releases/latest}") \
+    || { printf '%s\n' '无法查询最新稳定版本；请设置 XYMEDIA_RELEASE_TAG' >&2; exit 1; }
+  RELEASE_TAG=$(printf '%s\n' "$latest_json" | sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+  [[ $RELEASE_TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { printf '%s\n' '最新 Release 不是稳定版本或响应无效' >&2; exit 1; }
+  printf '%s\n' "已解析最新稳定版：$RELEASE_TAG" >&2
+fi
+if [[ -z ${XYMEDIA_CATALOG_URL:-} && -n $RELEASE_TAG ]]; then
+  CATALOG_URL="https://github.com/$RELEASE_REPO/releases/download/$RELEASE_TAG/catalog-v1.json"
+else
+  CATALOG_URL=$XYMEDIA_CATALOG_URL
+fi
+if [[ -z ${XYMEDIA_RELEASE_BASE:-} && -n $RELEASE_TAG ]]; then
+  RELEASE_BASE="https://github.com/$RELEASE_REPO/releases/download/$RELEASE_TAG"
+else
+  RELEASE_BASE=$XYMEDIA_RELEASE_BASE
 fi
 rewrite_download_url() {
   local original=$1 host
