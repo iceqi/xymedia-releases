@@ -1371,6 +1371,12 @@ for m in members:
         raise SystemExit('executable archive member was not extracted as a regular file')
     path.chmod(path.stat().st_mode | 0o500)
 PY
+  if [[ $component == app ]]; then
+    for entrypoint in "$target/bin/xymediavault" "$target/bin/xymedia-supervisor"; do
+      [[ -f $entrypoint && ! -L $entrypoint ]] || die "app package entrypoint is not a regular file: ${entrypoint##*/}"
+      chmod 755 "$entrypoint" || die "无法恢复 app entrypoint 执行权限：${entrypoint##*/}"
+    done
+  fi
   cp "$archive" "$target/.download.archive"
   rm -f "$tarball"
   rm -rf "$work"
