@@ -32,10 +32,10 @@ curl -fsSL --proto '=https' --proto-redir '=https' \
 ```bash
 curl -fsSL --proto '=https' --proto-redir '=https' \
   https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
-  | sudo env XYMEDIA_MIRROR=https://gh-proxy.org bash
+  | sudo env XYMEDIA_MIRROR=https://proxy.example bash
 ```
 
-镜像是用户自行选择的服务，不保证可用性；失败时取消该变量重试直连，或更换镜像。不要把密钥放进 URL。
+镜像是用户自行选择的服务，不保证可用性；失败时取消该变量重试直连，或更换镜像。普通 GitHub 文件下载使用 `<mirror>/https://github.com/...`（具体代理也可能使用 `proxy.host/github.com/...`）；Bootstrap 镜像路径由提供方决定。例如已验证的服务使用 `proxy.151513.xyz/ghcr.io/iceqi/xymedia-bootstrap:1`，不使用 `/docker/` 段。不要把密钥放进 URL。
 
 ## 强制更新
 
@@ -44,7 +44,7 @@ curl -fsSL --proto '=https' --proto-redir '=https' \
 ```bash
 curl -fsSL --proto '=https' --proto-redir '=https' \
   https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
-  | sudo env XYMEDIA_MIRROR=https://gh-proxy.org bash -s -- --force-update
+  | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash -s -- --force-update
 ```
 
 - `--force-update`（`XYMEDIA_FORCE_UPDATE=1`）：强制重新下载当前版本应用、Controller、TMM、Title、模板和目录，并对相关服务使用 `--pull always --force-recreate`。
