@@ -1246,7 +1246,7 @@ PY
 mv -f "$env_tmp" "$INSTALL_DIR/.env"
 if [[ -z ${BOOTSTRAP_IMAGE_ENV_EXPLICIT:-} ]] && ! grep -q '^XYMEDIA_BOOTSTRAP_IMAGE=' "$INSTALL_DIR/.env"; then
   if [[ -n $XYMEDIA_MIRROR ]]; then
-    export XYMEDIA_BOOTSTRAP_IMAGE="${XYMEDIA_MIRROR#https://}/docker/ghcr.io/iceqi/xymedia-bootstrap:1"
+    export XYMEDIA_BOOTSTRAP_IMAGE="${XYMEDIA_MIRROR#https://}/ghcr.io/iceqi/xymedia-bootstrap:1"
   fi
 fi
 progress '下载公开版本目录（读取 App、TMM、Title 当前版本）'
@@ -1550,7 +1550,7 @@ if [[ -n $MENU_PROFILES ]]; then
 fi
 progress '下载 bootstrap runtime'
   if ! run_logged "${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" "${COMPOSE_FUSE[@]}" pull app; then
-    die 'bootstrap runtime 下载失败；请确认能访问 gh-proxy.org，或通过 XYMEDIA_BOOTSTRAP_IMAGE 使用直接 GHCR 镜像'
+    die 'bootstrap runtime 下载失败；请确认镜像服务可用，或通过 XYMEDIA_BOOTSTRAP_IMAGE 使用直接 GHCR 镜像'
   fi
 validate_bootstrap_runtime_platform() {
   local bootstrap_image_expected bootstrap_image_ref bootstrap_image_id runtime_metadata runtime_platform
@@ -1558,7 +1558,7 @@ validate_bootstrap_runtime_platform() {
   if [[ -z $bootstrap_image_expected && -f $INSTALL_DIR/.env ]]; then
     bootstrap_image_expected=$(awk -F= '$1 == "XYMEDIA_BOOTSTRAP_IMAGE" {sub(/^[^=]*=/, ""); print; exit}' "$INSTALL_DIR/.env")
   fi
-  bootstrap_image_expected=${bootstrap_image_expected:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+  bootstrap_image_expected=${bootstrap_image_expected:-ghcr.io/iceqi/xymedia-bootstrap:1}
   bootstrap_image_ref=$("${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" config --images 2>>"$INSTALL_LOG" | awk -v expected="$bootstrap_image_expected" 'NF && $0 == expected {print; exit}') || true
   if [[ -z $bootstrap_image_ref ]]; then
     bootstrap_image_id=$("${COMPOSE[@]}" --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" images -q app 2>>"$INSTALL_LOG" | awk 'NF {print; exit}') || true
