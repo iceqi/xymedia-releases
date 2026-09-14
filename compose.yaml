@@ -22,7 +22,7 @@ services:
       retries: 24
   app:
     # 应用容器通过宿主机公开端口连接 PostgreSQL；Docker/NAS 网络和防火墙必须允许局域网/回环访问。
-    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-ghcr.io/iceqi/xymedia-bootstrap:1}
     container_name: xymedia-app
     labels: *xymedia-managed-labels
     entrypoint: [/usr/bin/tini, --]
@@ -70,7 +70,7 @@ services:
       - "${XYMEDIA_XIAOYA_DATA_DIR:-${XYMEDIA_INSTALL_DIR}/xiaoya}/data:/www/data"
     restart: unless-stopped
   xiaoya-control:
-    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-ghcr.io/iceqi/xymedia-bootstrap:1}
     profiles: [xiaoya-control]
     container_name: xymedia-controller
     labels: *xymedia-managed-labels
@@ -99,7 +99,7 @@ services:
     restart: unless-stopped
   app-migrate:
     # 迁移容器同样通过宿主机公开端口连接；Docker/NAS 网络和防火墙必须允许局域网/回环访问。
-    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-ghcr.io/iceqi/xymedia-bootstrap:1}
     labels: *xymedia-managed-labels
     entrypoint: [/releases/current/bin/xymediavault]
     command: [migrate, --new, --config, /app/config.yaml]
