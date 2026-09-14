@@ -6,7 +6,7 @@
 - **Title**：提供标题/媒体文件解析服务。
 - **Controller**：在小雅主机侧提供受 Token 保护的远程管理连接。
 
-v2.2.0 的公开组件版本、平台、资产名称和 SHA-256 均以随 Release 发布的 `catalog-v1.json` 为准；不要从其他地址替换组件。安装器按主机架构选择资产，并在写入安装目录前校验 SHA-256。
+公开组件版本、平台、资产名称和 SHA-256 均以所选 Release 发布的 `catalog-v1.json` 为准；不要从其他地址替换组件。安装器按主机架构选择资产，并在写入安装目录前校验 SHA-256。
 
 TMM 发布 `linux-any` 资产；Title 发布 `linux-amd64` 和 `linux-arm64` 资产；应用和 Controller 发布 amd64、arm64 资产。ARMv7 不提供 Title，核心服务仍可启动但 Title 会显示不可用。
 
