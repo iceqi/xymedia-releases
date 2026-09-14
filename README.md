@@ -1,6 +1,6 @@
 # XyMediaVault
 
-> 当前公开版本：**v2.2.0**
+> 当前公开版本：**v2.2.1**
 >
 > 本仓库只提供公开安装器、部署模板、组件成品和用户文档，不包含项目源码。
 
@@ -10,9 +10,11 @@
 
 ```bash
 curl -fsSL \
-  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
+  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
   | sudo bash
 ```
+
+安装器会自动查询并安装最新稳定版；如需固定版本，可设置 `XYMEDIA_RELEASE_TAG=v2.2.1`。
 
 ### 使用下载镜像
 
@@ -20,7 +22,7 @@ curl -fsSL \
 
 ```bash
 curl -fsSL \
-  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
+  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash
 ```
 
@@ -59,7 +61,7 @@ curl -fsSL \
 
 ```bash
 curl -fsSL \
-  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
+  https://proxy.151513.xyz/github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.151513.xyz bash -s -- --force-update
 ```
 
@@ -121,7 +123,7 @@ XYMEDIA_WEBDAV_PORT=28081 \
 XYMEDIA_TVBOX_PORT=28082 \
 XYMEDIA_CONTROLLER_PORT=29090 \
 curl -fsSL \
-  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
+  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
   | sudo -E bash
 ```
 
