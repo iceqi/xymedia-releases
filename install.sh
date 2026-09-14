@@ -1372,7 +1372,9 @@ for m in members:
     path.chmod(path.stat().st_mode | 0o500)
 PY
   if [[ $component == app ]]; then
-    for entrypoint in "$target/bin/xymediavault" "$target/bin/xymedia-supervisor"; do
+    app_root=$(find "$target" -mindepth 2 -maxdepth 3 -type d -name bin -print -quit)
+    [[ -n $app_root ]] || die 'app package entrypoint directory is missing'
+    for entrypoint in "$app_root/xymediavault" "$app_root/xymedia-supervisor"; do
       [[ -f $entrypoint && ! -L $entrypoint ]] || die "app package entrypoint is not a regular file: ${entrypoint##*/}"
       chmod 755 "$entrypoint" || die "无法恢复 app entrypoint 执行权限：${entrypoint##*/}"
     done
