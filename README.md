@@ -51,6 +51,26 @@ curl -fsSL --proto '=https' --proto-redir '=https' \
 
 安装器会从 GitHub Release `catalog-v1.json` 下载与主机架构匹配的制品。默认固定为 v2.2.0；未来版本可通过 `XYMEDIA_CATALOG_URL` 和 `XYMEDIA_RELEASE_BASE` 覆盖，避免修改脚本。
 
+### 强制更新选项
+
+升级已有安装时可使用以下不带值选项，也支持对应环境变量：
+
+```bash
+curl -fsSL --proto '=https' --proto-redir '=https' \
+  https://github.com/iceqi/xymedia-releases/releases/download/v2.2.0/install.sh \
+  | sudo env XYMEDIA_MIRROR=https://gh-proxy.org bash -s -- --force-update
+```
+
+| 选项 | 作用 |
+| --- | --- |
+| `--force-update` | 强制重新下载当前版本应用、Controller、TMM、Title、模板和目录，并使用 `--pull always --force-recreate` 更新相关容器；环境变量：`XYMEDIA_FORCE_UPDATE=1`。 |
+| `--force-image` | 不重新下载文件，只强制检查/拉取 Bootstrap 镜像并重建相关容器；环境变量：`XYMEDIA_FORCE_IMAGE=1`。 |
+| `--force-components` | 只强制重新下载、校验和提取 TMM、Title；环境变量：`XYMEDIA_FORCE_COMPONENTS=1`。 |
+
+`--force-update` 覆盖另外两个选项的重叠语义。所有强制模式都保留 `data/`、`.env`、`secrets/`、数据库和 Xiaoya 数据；下载仍经临时文件与 SHA-256 校验后原子替换。
+
+Compose 的 `--force-recreate` 强制重新创建容器，`--pull always` 强制检查并拉取镜像；两者只用于 `up`，不会用于数据库迁移的 `compose run`。
+
 ### 可选下载镜像
 
 默认情况下，GitHub Release 文件直接从 GitHub 下载。网络无法直接访问 GitHub 时，可只设置一个 HTTPS origin 作为 URL 镜像（这不是 HTTP/HTTPS 代理）：
