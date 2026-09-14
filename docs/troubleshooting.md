@@ -15,7 +15,7 @@ curl -fsS http://127.0.0.1:18080/api/health
 如果升级时数据库迁移提示 `/releases/current/bin/xymediavault: permission denied`，请在原安装目录使用公开安装器重跑强制更新。`--force-update` 会重新下载并校验应用包，在替换 release 前修复应用入口文件权限；它不会删除数据库、`data/` 或 `secrets/`。使用下载镜像时保留同一个 `XYMEDIA_MIRROR`，例如：
 
 ```bash
-curl -fsSL --proto '=https' --proto-redir '=https' https://github.com/iceqi/xymedia-releases/releases/download/v2.2.1/install.sh \
+curl -fsSL --proto '=https' --proto-redir '=https' https://github.com/iceqi/xymedia-releases/releases/latest/download/install.sh \
   | sudo env XYMEDIA_MIRROR=https://proxy.example bash -s -- --force-update
 ```
 
