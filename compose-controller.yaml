@@ -1,6 +1,6 @@
 services:
   xiaoya-control:
-    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-gh-proxy.org/docker/ghcr.io/iceqi/xymedia-bootstrap:1}
+    image: ${XYMEDIA_BOOTSTRAP_IMAGE:-ghcr.io/iceqi/xymedia-bootstrap:1}
     container_name: xymedia-controller
     labels:
       com.xymediavault.managed: "true"
